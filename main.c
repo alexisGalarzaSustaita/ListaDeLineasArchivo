@@ -1,145 +1,134 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include<ctype.h>
+#include "main.h"
 
-typedef struct node{
-    char string[100]; 
-    struct node *league; }*LIST; 
-
-/*PROTOTIPOS*/
-void startist(LIST *head); 
-int createNode(LIST *new, char string[]); 
-int insertEnd(LIST *head, char string[]); 
-void sampleList(LIST head);
-int eliminateStart(LIST *head, char string[]); 
-int eliminateEnd(LIST *head, char string[]); 
-int openFile(FILE **file, char nameFile[], char mode[]); 
-void closeFile(FILE *file); 
-int readFile(char *namesFiles[], int numberFiles, LIST *head);  
-
-int main(){
-
-    char *files[] = {"gramatica1.txt", "gramatica2.txt", "gramatica7.txt", "gramatica8.txt", "gramatica12.txt", "gramatica13.txt", "gramatica16.txt", "gramatica17.txt", "gramatica22.txt", "gramatica23.txt"};
-    int numberFiles=sizeof(files)/sizeof(files[0]);
-    LIST *list; 
-
-    startist(&list);
-    if(readFile(files,numberFiles,&list)){
-        printf("Contenido: \n");  
-        sampleList(list);   }
-    else 
-        printf("Error"); 
-
-    return(0);                  }
-
-/*FUNCIONES*/
-void startist(LIST *head){
-    *head=NULL;             }
-
-
-int createNode(LIST *new, char string[]){
-    int result=0; 
-
-    *new=(LIST)malloc(sizeof(struct node)); 
-    if(*new){
-        strncpy((*new)->string, string, sizeof((*new)->string) - 1);
-        (*new)->string[sizeof((*new)->string) - 1] = '\0'; 
-        (*new)->league = NULL;
-        result=1;           }
-
-    return(result);             }
-
-
-int insertEnd(LIST *head, char string[]){
-    int result; 
-    LIST new,aux;
-
-    result=createNode(&new,string); 
-    if(result) 
-        if(!*head)
-            *head=new; 
-        else{
-            aux=*head; 
-            for(;aux->league;aux=aux->league); 
-            aux->league=new;                }
-
-    return(result);                                     } 
-
-
-void sampleList(LIST head){
-    if(head){
-        printf("%s \n", head->string);
-        sampleList(head->league);        }       }
-
-
-int eliminateStart(LIST *head, char string[]){
-    int result=0; 
-    LIST aux; 
-
-    if(*head){
-        aux=*head; 
-        strcpy(string,aux->string);
-        *head=aux->league; 
-        free(aux); 
-        result=1;                      }
-
-    return(result);                 }
-
-
-int eliminateEnd(LIST *head, char string[]){
-    int result=0;
-    LIST aux,former; 
-
-    if(*head){
-        aux=*head; 
-        while(aux->league){
-            former=aux; 
-            aux=aux->league;        }
-
-        if(*head==aux)
-            *head=NULL; 
-        else
-            former->league=NULL; 
+int main() {
     
-        strcpy(string,aux->string);
-        free(aux); 
-        result=1;               }
+    FILE *grammar = fopen("gramatica1.txt", "r");
 
-    return(result);                     }
+    if (grammar == NULL) {
+        perror("Error opening the file");
+        return 1;
+    }
+
+    Node *head = createLinkedList(grammar);
+    
+    fclose(grammar);
+
+    // Output the contents of the linked list
+    printList(head);
+
+    // Free the linked list
+    freeLinkedList(head);
+
+    return 0;
+}
+
+// Function to create a new node
+Node *createNode(const char *ruleIdentifier, const char *production) {
+    Node *newNode = (Node *)malloc(sizeof(Node));
+    newNode->ruleIdentifier = strdup(ruleIdentifier);
+    newNode->production = strdup(production);
+    newNode->next = NULL;
+    return newNode;
+}
+
+// Function to append a node to the list
+void appendNode(Node **head, const char *ruleIdentifier, const char *production) {
+    Node *newNode = createNode(ruleIdentifier, production);
+
+    if (*head == NULL) {
+        *head = newNode; 
+    } else {
+        Node *current = *head;
+        while (current->next != NULL) {
+            current = current->next;
+        }
+        current->next = newNode;
+    }
+}
+
+// Function to free the linked list
+void freeLinkedList(Node *head) {
+    Node *current = head;
+    Node *next;
+
+    while (current != NULL) {
+        next = current->next;
+        free(current->ruleIdentifier);
+        free(current->production);
+        free(current);
+        current = next;
+    }
+}
+
+// Function to create a linked list from the file
+Node* createLinkedList(FILE *file) {
+    Node *head = NULL; 
+    char line[MAX_LINE_LENGTH];
+    char ruleIdentifier[MAX_LINE_LENGTH];
+    char production[MAX_LINE_LENGTH];
+
+    while (fgets(line, sizeof(line), file)) {
+        // Remove the newline character if present
+        line[strcspn(line, "\n")] = '\0';
+        splitLine(line, ruleIdentifier, production);
+        appendOrUpdateNode(&head, ruleIdentifier, production);
+    }
+
+    return head;
+}
+
+// Function to print the linked list
+void printList(Node *head) {
+    Node *current = head;
+
+    while (current != NULL) {
+        printf("%s -> %s\n", current->ruleIdentifier, current->production);
+        current = current->next;
+    }
+}
+
+void splitLine(const char *line, char *ruleIdentifier, char *production){
+    const char *delimiter = strstr(line, "->");
+    if (delimiter != NULL) {
+        strncpy(ruleIdentifier, line, delimiter - line);
+        ruleIdentifier[delimiter - line] = '\0';
+        strcpy(production, delimiter + 2);
+    }
+}
 
 
-int openFile(FILE **file, char nameFile[], char mode[]){
-    int result=0;
+Node* findNode(Node *head, const char *ruleIdentifier){
+    Node *current = head;
+    while (current != NULL) {
+        if (strcmp(current->ruleIdentifier, ruleIdentifier) == 0) {
+            return current; 
+        }
+        current = current->next; 
+    } 
+    return NULL; 
+}
 
-    *file=fopen(nameFile,mode); 
-    if(*file)
-        result=1; 
+void appendProduction(Node *node, const char *production){
+    size_t newSize = strlen(node->production) + strlen(production) + 4;
+    node->production = (char *)realloc(node->production, newSize); 
+    strcat(node->production, " | ");
+    strcat(node->production, production);
+}
 
-    return(result);         }
-
-
-void closeFile(FILE *file){
-    fclose(file);           }
-
-
-int readFile(char *namesFiles[], int numberFiles, LIST *head){
-    char row[100],nameFile[25],*mode="r"; 
-    int result,counter;
-    FILE *file; 
-
-    for(counter=0;counter<numberFiles;counter++){ 
-        strncpy(nameFile, namesFiles[counter], sizeof(nameFile) - 1);
-        nameFile[sizeof(nameFile) - 1] = '\0';
-        result=openFile(&file,nameFile,mode); 
-        if(result){
-            while(fgets(row,sizeof(row),file)!=NULL){ 
-                row[strcspn(row, "\n")] = '\0';
-                if(!insertEnd(head,row)) 
-                    printf("Error al insertar el nodo en el archivo: %s\n", nameFile);
-                                                                                             }
-            closeFile(file);                }     
-        else 
-            printf("No se pudo abrir\n");         }     
-            
-    return(result);    }
+void appendOrUpdateNode(Node **head, const char *ruleIdentifier, const char *production){
+    Node *existingNode = findNode(*head, ruleIdentifier);
+    if (existingNode != NULL) {
+        appendProduction(existingNode, production);
+    } else {
+        Node *newNode = createNode(ruleIdentifier, production);
+        if (*head == NULL){
+            *head = newNode; 
+        } else {
+            Node *temp = *head; 
+            while (temp->next != NULL) {
+                temp = temp->next;
+            }
+            temp->next = newNode; 
+        }
+    }
+}
